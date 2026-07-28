@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Go/No-Go Task</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: radial-gradient(circle at top, #eef5ff, #dfefff 60%, #c8dff8);
+        margin: 0;
+        padding: 0;
+        color: #1f2d3d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+
+      .container {
+        width: min(86vw, 720px);
+        aspect-ratio: 1 / 1;
+        margin: 0 auto;
+        background: white;
+        padding: 28px;
+        border-radius: 24px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 1;
+        transition: opacity 0.2s ease;
+      }
+
+      .instructions {
+        line-height: 1.7;
+      }
+
+      .instruction-box {
+        background: #f7faff;
+        border: 1px solid #dbe7f7;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin: 12px 0;
+      }
+
+      button {
+        margin-top: 12px;
+        padding: 10px 16px;
+        border: none;
+        border-radius: 8px;
+        background: #2d6cdf;
+        color: white;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+
+      .fixation {
+        font-size: 4rem;
+        font-weight: bold;
+        color: #1f2d3d;
+        margin: 40px 0;
+      }
+
+      .stimulus-card {
+        padding: 20px;
+      }
+
+      .stimulus-image {
+        width: min(62vw, 360px);
+        height: min(62vw, 360px);
+        max-width: 360px;
+        max-height: 360px;
+        object-fit: cover;
+        border-radius: 20px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+        font-size: min(24vw, 220px);
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f7faff;
+        user-select: none;
+      }
+
+      .summary-card {
+        text-align: left;
+        width: 100%;
+        max-width: 360px;
+        margin: 0 auto;
+      }
+
+      .summary-card p {
+        margin: 8px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="screen" class="container"></div>
+
+    <script>
+      const screen = document.getElementById('screen');
+      const animalEmojis = ['🐶', '🐱', '🐼', '🦊'];
+      const birdEmojis = ['🐦', '🦅', '🦆', '🐧'];
+
+      const trialPool = [];
+      for (let i = 0; i < 16; i++) {
+        const emoji = animalEmojis[i % animalEmojis.length];
+        trialPool.push({ type: 'animal', emoji: emoji, correctResponse: 's' });
+      }
+      for (let i = 0; i < 4; i++) {
+        const emoji = birdEmojis[i % birdEmojis.length];
+        trialPool.push({ type: 'bird', emoji: emoji, correctResponse: 'h' });
+      }
+
+      const trials = shuffle(trialPool);
+      let currentIndex = 0;
+      let activeTrial = null;
+      let responseCaptured = false;
+      let trialStartTime = 0;
+      let results = [];
+      let experimentStartTime = 0;
+
+      function shuffle(array) {
+        const copy = [...array];
+        for (let i = copy.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+      }
+
+      function renderContent(html) {
+        screen.style.opacity = '0';
+        setTimeout(() => {
+          screen.innerHTML = html;
+          requestAnimationFrame(() => {
+            screen.style.opacity = '1';
+          });
+        }, 100);
+      }
+
+      function showIntro() {
+        renderContent(`
+          <div class="instructions">
+            <h1>Go / No-Go Task</h1>
+            <div class="instruction-box">
+              <p>Please focus on the screen and respond as quickly and accurately as you can.</p>
+              <p>Press <strong>S</strong> for the animal image and <strong>H</strong> for the bird image.</p>
+            </div>
+            <button id="startButton">Start</button>
+          </div>
+        `);
+        setTimeout(() => {
+          document.getElementById('startButton').addEventListener('click', startExperiment);
+        }, 120);
+      }
+
+      function showIntroTimed() {
+        showIntro();
+        setTimeout(() => {
+          if (document.getElementById('startButton')) {
+            document.getElementById('startButton').click();
+          }
+        }, 2000);
+      }
+
+      function startExperiment() {
+        currentIndex = 0;
+        results = [];
+        experimentStartTime = Date.now();
+        runTrial();
+      }
+
+      function runTrial() {
+        if (currentIndex >= trials.length) {
+          finishExperiment();
+          return;
+        }
+
+        const trial = trials[currentIndex];
+        currentIndex += 1;
+        activeTrial = trial;
+        responseCaptured = false;
+        trialStartTime = 0;
+
+        renderContent('<div class="fixation">+</div>');
+        setTimeout(() => showStimulus(trial), 1000);
+      }
+
+      function showStimulus(trial) {
+        renderContent(`
+          <div class="stimulus-card">
+            <div class="stimulus-image">${trial.emoji}</div>
+          </div>
+        `);
+        trialStartTime = Date.now();
+        document.addEventListener('keydown', handleKey);
+        setTimeout(() => {
+          if (!responseCaptured) {
+            recordResponse('', 0, false);
+          }
+          document.removeEventListener('keydown', handleKey);
+          setTimeout(runTrial, 250);
+        }, 1000);
+      }
+
+      function handleKey(event) {
+        const key = event.key.toLowerCase();
+        if (!activeTrial || responseCaptured) return;
+        if (key !== 's' && key !== 'h') return;
+
+        event.preventDefault();
+        responseCaptured = true;
+        const rt = Date.now() - trialStartTime;
+        const correct = key === activeTrial.correctResponse;
+        recordResponse(key, rt, correct);
+      }
+
+      function recordResponse(key, rt, correct) {
+        results.push({
+          trial_index: results.length + 1,
+          stimulus_type: activeTrial.type,
+          response_key: key,
+          correct: correct,
+          rt: rt
+        });
+      }
+
+      function finishExperiment() {
+        const totalTime = Math.round((Date.now() - experimentStartTime) / 1000);
+        const misses = results.filter(r => r.response_key === '').length;
+        const wrongResponses = results.filter(r => r.response_key !== '' && !r.correct).length;
+        const correctResponses = results.filter(r => r.correct).length;
+        const csv = ['trial_index,stimulus_type,response_key,correct,rt', ...results.map(r => `${r.trial_index},${r.stimulus_type},${r.response_key},${r.correct},${r.rt}`)].join('\n');
+        downloadCsv(csv, 'go_nogo_results.csv');
+        renderContent(`
+          <div class="summary-card">
+            <h2>Task complete</h2>
+            <p><strong>Total trials:</strong> ${results.length}</p>
+            <p><strong>Correct responses:</strong> ${correctResponses}</p>
+            <p><strong>Wrong responses:</strong> ${wrongResponses}</p>
+            <p><strong>Misses:</strong> ${misses}</p>
+            <p><strong>Total time:</strong> ${totalTime} s</p>
+            <p>Thank you for participating.</p>
+            <p>Your results were downloaded as a CSV file.</p>
+            <button onclick="location.reload()">Run again</button>
+          </div>
+        `);
+      }
+
+      function downloadCsv(content, filename) {
+        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, 0);
+      }
+
+      showIntro();
+    </script>
+  </body>
+</html>
