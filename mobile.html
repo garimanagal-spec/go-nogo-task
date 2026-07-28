@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Go/No-Go Task - Mobile Version</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: radial-gradient(circle at top, #eef5ff, #dfefff 60%, #c8dff8);
+        margin: 0;
+        padding: 0;
+        color: #1f2d3d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+
+      .container {
+        width: min(94vw, 720px);
+        min-height: min(94vw, 720px);
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 24px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 1;
+        transition: opacity 0.2s ease;
+      }
+
+      .instructions {
+        line-height: 1.6;
+      }
+
+      .instruction-box {
+        background: #f7faff;
+        border: 1px solid #dbe7f7;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin: 12px 0;
+      }
+
+      button {
+        margin-top: 12px;
+        padding: 10px 16px;
+        border: none;
+        border-radius: 8px;
+        background: #2d6cdf;
+        color: white;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+
+      .fixation {
+        font-size: 4rem;
+        font-weight: bold;
+        color: #1f2d3d;
+        margin: 20px 0;
+      }
+
+      .stimulus-card {
+        width: 100%;
+        padding: 8px;
+      }
+
+      .stimulus-image {
+        width: min(74vw, 320px);
+        height: min(74vw, 320px);
+        max-width: 320px;
+        max-height: 320px;
+        object-fit: cover;
+        border-radius: 20px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+        font-size: min(24vw, 200px);
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f7faff;
+        user-select: none;
+        margin: 0 auto;
+      }
+
+      .response-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 14px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+      }
+
+      .response-btn {
+        min-width: 84px;
+        min-height: 84px;
+        border-radius: 18px;
+        font-size: 1.7rem;
+        font-weight: 700;
+        background: #2d6cdf;
+        color: white;
+        box-shadow: 0 8px 20px rgba(45, 108, 223, 0.24);
+        touch-action: manipulation;
+      }
+
+      .response-btn.is-selected {
+        background: #1d4ea3;
+        transform: scale(0.98);
+      }
+
+      .summary-card {
+        text-align: left;
+        width: 100%;
+        max-width: 360px;
+        margin: 0 auto;
+      }
+
+      .summary-card p {
+        margin: 8px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="screen" class="container"></div>
+
+    <script>
+      const screen = document.getElementById('screen');
+      const animalEmojis = ['🐶', '🐱', '🐼', '🦊'];
+      const birdEmojis = ['🐦', '🦅', '🦆', '🐧'];
+
+      const trialPool = [];
+      for (let i = 0; i < 16; i++) {
+        const emoji = animalEmojis[i % animalEmojis.length];
+        trialPool.push({ type: 'animal', emoji: emoji, correctResponse: 's' });
+      }
+      for (let i = 0; i < 4; i++) {
+        const emoji = birdEmojis[i % birdEmojis.length];
+        trialPool.push({ type: 'bird', emoji: emoji, correctResponse: 'h' });
+      }
+
+      const trials = shuffle(trialPool);
+      let currentIndex = 0;
+      let activeTrial = null;
+      let responseCaptured = false;
+      let trialStartTime = 0;
+      let results = [];
+      let experimentStartTime = 0;
+
+      function shuffle(array) {
+        const copy = [...array];
+        for (let i = copy.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+      }
+
+      function renderContent(html) {
+        screen.style.opacity = '0';
+        setTimeout(() => {
+          screen.innerHTML = html;
+          requestAnimationFrame(() => {
+            screen.style.opacity = '1';
+          });
+        }, 100);
+      }
+
+      function showIntro() {
+        renderContent(`
+          <div class="instructions">
+            <h1>Go / No-Go Task</h1>
+            <div class="instruction-box">
+              <p>Please focus on the screen and respond as quickly and accurately as you can.</p>
+              <p>Tap <strong>S</strong> for the animal image and <strong>H</strong> for the bird image.</p>
+              <p>This version is designed for phones and tablets.</p>
+            </div>
+            <button id="startButton">Start</button>
+          </div>
+        `);
+        setTimeout(() => {
+          document.getElementById('startButton').addEventListener('click', startExperiment);
+        }, 120);
+      }
+
+      function startExperiment() {
+        currentIndex = 0;
+        results = [];
+        experimentStartTime = Date.now();
+        runTrial();
+      }
+
+      function runTrial() {
+        if (currentIndex >= trials.length) {
+          finishExperiment();
+          return;
+        }
+
+        const trial = trials[currentIndex];
+        currentIndex += 1;
+        activeTrial = trial;
+        responseCaptured = false;
+        trialStartTime = 0;
+
+        renderContent('<div class="fixation">+</div>');
+        setTimeout(() => showStimulus(trial), 1000);
+      }
+
+      function showStimulus(trial) {
+        renderContent(`
+          <div class="stimulus-card">
+            <div class="stimulus-image">${trial.emoji}</div>
+            <div class="response-buttons">
+              <button class="response-btn" data-response="s">S</button>
+              <button class="response-btn" data-response="h">H</button>
+            </div>
+          </div>
+        `);
+        trialStartTime = Date.now();
+        bindResponseButtons();
+        setTimeout(() => {
+          if (!responseCaptured) {
+            recordResponse('', 0, false);
+          }
+          setTimeout(runTrial, 250);
+        }, 1000);
+      }
+
+      function bindResponseButtons() {
+        document.querySelectorAll('.response-btn').forEach((button) => {
+          button.addEventListener('click', (event) => {
+            event.preventDefault();
+            handleResponse(event.currentTarget.dataset.response);
+          });
+        });
+      }
+
+      function handleResponse(key) {
+        if (!activeTrial || responseCaptured) return;
+        responseCaptured = true;
+        const rt = Date.now() - trialStartTime;
+        const correct = key === activeTrial.correctResponse;
+        document.querySelectorAll('.response-btn').forEach((button) => {
+          button.classList.toggle('is-selected', button.dataset.response === key);
+          button.disabled = true;
+        });
+        recordResponse(key, rt, correct);
+      }
+
+      function recordResponse(key, rt, correct) {
+        results.push({
+          trial_index: results.length + 1,
+          stimulus_type: activeTrial.type,
+          response_key: key,
+          correct: correct,
+          rt: rt
+        });
+      }
+
+      function finishExperiment() {
+        const totalTime = Math.round((Date.now() - experimentStartTime) / 1000);
+        const misses = results.filter(r => r.response_key === '').length;
+        const wrongResponses = results.filter(r => r.response_key !== '' && !r.correct).length;
+        const correctResponses = results.filter(r => r.correct).length;
+        const csv = ['trial_index,stimulus_type,response_key,correct,rt', ...results.map(r => `${r.trial_index},${r.stimulus_type},${r.response_key},${r.correct},${r.rt}`)].join('\n');
+        downloadCsv(csv, 'go_nogo_results_mobile.csv');
+        renderContent(`
+          <div class="summary-card">
+            <h2>Task complete</h2>
+            <p><strong>Total trials:</strong> ${results.length}</p>
+            <p><strong>Correct responses:</strong> ${correctResponses}</p>
+            <p><strong>Wrong responses:</strong> ${wrongResponses}</p>
+            <p><strong>Misses:</strong> ${misses}</p>
+            <p><strong>Total time:</strong> ${totalTime} s</p>
+            <p>Thank you for participating.</p>
+            <p>Your results were downloaded as a CSV file.</p>
+            <button onclick="location.reload()">Run again</button>
+          </div>
+        `);
+      }
+
+      function downloadCsv(content, filename) {
+        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, 0);
+      }
+
+      showIntro();
+    </script>
+  </body>
+</html>
