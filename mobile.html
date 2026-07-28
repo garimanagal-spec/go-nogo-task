@@ -104,6 +104,14 @@
         color: white;
         box-shadow: 0 8px 20px rgba(45, 108, 223, 0.24);
         touch-action: manipulation;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+        pointer-events: auto;
+        position: relative;
+        z-index: 10;
       }
 
       .response-btn.is-selected {
@@ -158,14 +166,11 @@
         return copy;
       }
 
-      function renderContent(html) {
-        screen.style.opacity = '0';
-        setTimeout(() => {
-          screen.innerHTML = html;
-          requestAnimationFrame(() => {
-            screen.style.opacity = '1';
-          });
-        }, 100);
+      function renderContent(html, callback) {
+        screen.innerHTML = html;
+        if (callback) {
+          callback();
+        }
       }
 
       function showIntro() {
@@ -179,10 +184,9 @@
             </div>
             <button id="startButton">Start</button>
           </div>
-        `);
-        setTimeout(() => {
+        `, () => {
           document.getElementById('startButton').addEventListener('click', startExperiment);
-        }, 120);
+        });
       }
 
       function startExperiment() {
@@ -217,36 +221,43 @@
               <button class="response-btn" data-response="h">H</button>
             </div>
           </div>
-        `);
-        trialStartTime = Date.now();
-        bindResponseButtons();
-        setTimeout(() => {
-          if (!responseCaptured) {
-            recordResponse('', 0, false);
-          }
-          setTimeout(runTrial, 250);
-        }, 1000);
+        `, () => {
+          trialStartTime = Date.now();
+          bindResponseButtons();
+          setTimeout(() => {
+            if (!responseCaptured) {
+              recordResponse('', 0, false);
+            }
+            setTimeout(runTrial, 250);
+          }, 1000);
+        });
       }
 
       function bindResponseButtons() {
         document.querySelectorAll('.response-btn').forEach((button) => {
-          button.addEventListener('click', (event) => {
+          const handle = (event) => {
             event.preventDefault();
-            handleResponse(event.currentTarget.dataset.response);
-          });
+            handleResponse(button.dataset.response);
+          };
+          button.addEventListener('pointerdown', handle);
+          button.addEventListener('touchstart', handle, { passive: false });
+          button.addEventListener('mousedown', handle);
+          button.addEventListener('click', handle);
         });
       }
 
       function handleResponse(key) {
         if (!activeTrial || responseCaptured) return;
+        const normalizedKey = String(key || '').toLowerCase();
         responseCaptured = true;
         const rt = Date.now() - trialStartTime;
-        const correct = key === activeTrial.correctResponse;
+        const expectedKey = String(activeTrial.correctResponse || '').toLowerCase();
+        const correct = normalizedKey === expectedKey;
         document.querySelectorAll('.response-btn').forEach((button) => {
-          button.classList.toggle('is-selected', button.dataset.response === key);
+          button.classList.toggle('is-selected', button.dataset.response === normalizedKey);
           button.disabled = true;
         });
-        recordResponse(key, rt, correct);
+        recordResponse(normalizedKey, rt, correct);
       }
 
       function recordResponse(key, rt, correct) {
